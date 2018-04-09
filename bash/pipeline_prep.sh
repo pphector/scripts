@@ -5,7 +5,7 @@ set -eu -o pipefail
 if [ "$#" != 2 ] #Are there less/more than two arguments? 
 then 
     echo "Error: you provided an incorrect number of arguments." 
-    echo "Usage: pipeline_prep.sh steps (analysis|report)"
+    echo "Usage: pipeline_prep.sh steps (analysis|report|clean)"
     exit 1
 fi
 
@@ -14,8 +14,9 @@ dir0="REPLACE" cd ${dir0}; echo ${dir0}
 typepipe="REPLACE"
 genome="REPLACE"
 versionpython="2.7.11"
+# DELETE FOLLOWING LINE WHEN USING WITH ABACUS, ALSO DELETE THE EXTRA INI FILE BELOW 
 cluster="REPLACE" # options include: briaree, cedar, graham, guillimin and mammouth
-# IF RUNNING ON ABACUS, REMOVE LINE ABOVE AND DELETE THE EXTRA INI FILE BELOW
+scheduler="REPLACE" # options (pbs,batch,daemon,slurm) WHEN USING WITH CEDAR MAKE SURE THIS VARIABLE IS SET TO SLURM
 myoutputdir="${dir0}/${typepipe}_output"
 myreadsets="${dir0}/readsets.REPLACE.tsv"
 mydesign="${dir0}/REPLACE.tsv"
@@ -52,8 +53,12 @@ elif [ $analysistype = "report" ]; then
   echo "Generating command files for report"
   python ${dirpipe}/${typepipe}.py -c ${dirpipe}/$typepipe.base.ini ${dirpipe}/$typepipe.mammouth.ini $extra_ini -s ${mysteps} -o ${myoutputdir} -r ${myreadsets} -d ${mydesign} ${protocol} $force --report > report_step${mysteps}.sh
   echo "Now run 'bash report_step${mysteps}.sh' to generate the report"
+elif [ $analysistype = "clean"]; then
+  echo "Generating command files for cleaning" 
+  python ${dirpipe}/${typepipe}.py -c ${dirpipe}/$typepipe.base.ini ${dirpipe}/$typepipe.mammouth.ini $extra_ini -s ${mysteps} -o ${myoutputdir} -r ${myreadsets} -d ${mydesign} ${protocol} $force --clean > clean_step${mysteps}.sh
+  echo "Now run 'bash clean_step${mysteps}.sh' to clean tmp files"
 else
-  echo "analysistype must be set to 'analysis' or 'report'"
+  echo "analysistype must be set to 'analysis', 'report' or 'clean'"
 fi
 
 echo "Pipeline_preparation completed"
