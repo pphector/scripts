@@ -10,20 +10,30 @@ then
 fi
 
 # FIXED PARAMETERS (MODIFY FOR EACH PROJECT)
-dir0="REPLACE" cd ${dir0}; echo ${dir0}
+dir0="REPLACE"; cd ${dir0}; echo ${dir0}
 typepipe="REPLACE"
 genome="REPLACE"
 versionpython="2.7.11"
-# DELETE FOLLOWING LINE WHEN USING WITH ABACUS, ALSO DELETE THE EXTRA INI FILE BELOW 
-cluster="REPLACE" # options include: briaree, cedar, graham, guillimin and mammouth
-scheduler="REPLACE" # options (pbs,batch,daemon,slurm) WHEN USING WITH CEDAR MAKE SURE THIS VARIABLE IS SET TO SLURM
+cluster="REPLACE" # options include: cedar, abacus, guillimin and mammouth
+if [ ${cluster} = "abacus" ]; then
+    clusterini=""
+    scheduler="pbs"
+elif [ ${cluster} = "mammouth" ]; then
+    clusterini="${dirpipe}/${typepipe}.${cluster}.ini"
+    scheduler="pbs"
+elif [ ${cluster} = "guillimin" ]; then
+    clusterini="${dirpipe}/${typepipe}.${cluster}.ini"
+    scheduler="pbs"
+elif [ ${cluster} = "cedar" ]; then
+    clusterini="${dirpipe}/${typepipe}.${cluster}.ini"
+    scheduler="slurm"
+fi
 myoutputdir="${dir0}/${typepipe}_output"
 myreadsets="${dir0}/readsets.REPLACE.tsv"
 mydesign="${dir0}/REPLACE.tsv"
 extra_ini="${dir0}/REPLACE.ini" #list of personalized ini files
-protocol="" # For pipelines that support protocols, define protocol here
-force="" #empty of "-f"
-
+protocol="" # For pipelines that support protocols, define protocol hereRforce="" #empty of "-f"
+force="" #empty or "-f"
 # VARIABLE PARAMETERS
 mysteps=${1}
 analysistype=${2}
@@ -45,17 +55,48 @@ echo "python $versionpython"
 
 
 module load mugqic/python/$versionpython
-if [ $analysistype = "analysis" ]; then
+if [ ${analysistype} = "analysis" ]; then
   echo "Generating command files for analysis"
-  python ${dirpipe}/${typepipe}.py -c ${dirpipe}/$typepipe.base.ini ${dirpipe}/$typepipe.mammouth.ini $extra_ini -s ${mysteps} -o ${myoutputdir} -r ${myreadsets} -d ${mydesign} ${protocol} $force > run_step${mysteps}.sh
+  python ${dirpipe}/${typepipe}.py -c ${dirpipe}/${typepipe}.base.ini \
+          ${clusterini} \
+          ${dirgenome}/${genome}.ini \
+          ${extra_ini} \
+          --steps ${mysteps} \
+          --output-dir ${myoutputdir} \
+          --readsets ${myreadsets} \
+          --design ${mydesign} \
+          --job-scheduler ${scheduler} \
+          ${protocol} \
+          ${force} > run_step${mysteps}.sh
+  chmod 755 run_step${mysteps}.sh
   echo "Now run 'bash run_step${mysteps}.sh' to start the analysis"
-elif [ $analysistype = "report" ]; then
+elif [ ${analysistype} = "report" ]; then
   echo "Generating command files for report"
-  python ${dirpipe}/${typepipe}.py -c ${dirpipe}/$typepipe.base.ini ${dirpipe}/$typepipe.mammouth.ini $extra_ini -s ${mysteps} -o ${myoutputdir} -r ${myreadsets} -d ${mydesign} ${protocol} $force --report > report_step${mysteps}.sh
+  python ${dirpipe}/${typepipe}.py -c ${dirpipe}/${typepipe}.base.ini \
+          ${clusterini} \
+          ${dirgenome}/${genome}.ini \
+          ${extra_ini} \
+          --steps ${mysteps} \
+          --output-dir ${myoutputdir} \
+          --readsets ${myreadsets} \
+          --design ${mydesign} \
+          ${protocol} \
+          --report > report_step${mysteps}.sh
+  chmod 755 report_step${mysteps}.sh
   echo "Now run 'bash report_step${mysteps}.sh' to generate the report"
 elif [ $analysistype = "clean"]; then
   echo "Generating command files for cleaning" 
-  python ${dirpipe}/${typepipe}.py -c ${dirpipe}/$typepipe.base.ini ${dirpipe}/$typepipe.mammouth.ini $extra_ini -s ${mysteps} -o ${myoutputdir} -r ${myreadsets} -d ${mydesign} ${protocol} $force --clean > clean_step${mysteps}.sh
+  python ${dirpipe}/${typepipe}.py -c ${dirpipe}/${typepipe}.base.ini \
+          ${clusterini} \
+          ${dirgenome}/${genome}.ini \
+          ${extra_ini} \
+          --steps ${mysteps} \
+          --output-dir ${myoutputdir} \
+          --readsets ${myreadsets} \
+          --design ${mydesign} \
+          ${protocol} \
+          --clean > clean_step${mysteps}.sh
+  chmod 755 clean_step${mysteps}.sh
   echo "Now run 'bash clean_step${mysteps}.sh' to clean tmp files"
 else
   echo "analysistype must be set to 'analysis', 'report' or 'clean'"
