@@ -12,6 +12,7 @@ fi
 # FIXED PARAMETERS (MODIFY FOR EACH PROJECT)
 dir0="REPLACE" cd ${dir0}; echo ${dir0}
 typepipe="REPLACE"
+dirpipe="${dir0}/genpipes/pipelines/${typepipe}"
 genome="REPLACE"
 versionpython="2.7.11"
 cluster="REPLACE" # options include: briaree, cedar, graham, guillimin and mammouth
@@ -37,7 +38,6 @@ else
   cd "$dir0/genpipes"; git pull; cd ${dir0}
 fi
 
-dirpipe="${dir0}/genpipes/pipelines/${typepipe}"
 versionpipe=$(cat ${dir0}/genpipes/VERSION); echo "pipeline version: ${versionpipe}: ${dirpipe}"
 dirgenome="/cvmfs/soft.mugqic/CentOS6/genomes/species/${genome}"; echo "genome: ${dirgenome}"
 echo "python $versionpython"
