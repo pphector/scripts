@@ -84,6 +84,20 @@ elif [ ${analysistype} = "report" ]; then
           --report > report_step${mysteps}.sh
   chmod 755 report_step${mysteps}.sh
   echo "Now run 'bash report_step${mysteps}.sh' to generate the report"
+elif [ ${analysistype} = "multiqc" ]; then
+  echo "Generating command files for multiqc report"
+  python ${dirpipe}/${typepipe}.py -c ${dirpipe}/${typepipe}.base.ini \
+          ${clusterini} \
+          ${dirgenome}/${genome}.ini \
+          ${extra_ini} \
+          --steps ${mysteps} \
+          --output-dir ${myoutputdir} \
+          --readsets ${myreadsets} \
+          --design ${mydesign} \
+          ${protocol} \
+          --multiqc > multiqc_step${mysteps}.sh
+  chmod 755 multiqc_step${mysteps}.sh
+  echo "Now run 'bash multiqc_step${mysteps}.sh' to generate the multiqc report"
 elif [ $analysistype = "clean"]; then
   echo "Generating command files for cleaning" 
   python ${dirpipe}/${typepipe}.py -c ${dirpipe}/${typepipe}.base.ini \
