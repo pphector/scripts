@@ -98,7 +98,7 @@ elif [ ${analysistype} = "multiqc" ]; then
           --multiqc > multiqc_step${mysteps}.sh
   chmod 755 multiqc_step${mysteps}.sh
   echo "Now run 'bash multiqc_step${mysteps}.sh' to generate the multiqc report"
-elif [ $analysistype = "clean"]; then
+elif [ $analysistype = "clean" ]; then
   echo "Generating command files for cleaning" 
   python ${dirpipe}/${typepipe}.py -c ${dirpipe}/${typepipe}.base.ini \
           ${clusterini} \
