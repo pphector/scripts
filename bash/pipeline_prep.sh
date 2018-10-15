@@ -31,6 +31,9 @@ elif [ ${cluster} = "cedar" ]; then
 elif [ ${cluster} = "graham" ]; then
     clusterini="${dirpipe}/${typepipe}.${cluster}.ini"
     scheduler="slurm"
+elif [ ${cluster} = "mp2b" ]; then
+    clusterini="${dirpipe}/${typepipe}.${cluster}.ini"
+    scheduler="slurm"
 fi
 myoutputdir="${dir0}/${typepipe}_output"
 myreadsets="${dir0}/readsets.REPLACE.tsv"
