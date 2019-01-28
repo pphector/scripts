@@ -1,0 +1,113 @@
+---
+title: "Moffatt additional analysis"
+output: html_notebook
+---
+
+
+```{r}
+library(mygene)
+library(GO.db)
+library(dplyr)
+library(readr)
+```
+
+# Add gene descriptions to dge_results
+
+Import `dge_results` table
+```{r}
+dge_results_C1 <- read_delim("DiffExp/Contrast1/Contrast1_Genes_DE_results.tsv", 
+ "\t", escape_double = FALSE, trim_ws = TRUE)
+dge_results_C2 <- read_delim("DiffExp/Contrast2/Contrast2_Genes_DE_results.tsv", 
+ "\t", escape_double = FALSE, trim_ws = TRUE)
+dge_results_C3 <- read_delim("DiffExp/Contrast3/Contrast3_Genes_DE_results.tsv", 
+ "\t", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+Use the `mygene` library to get the full gene names  
+Merge the relevant `geneAnnot` column to the rest of the `dge_results` table
+```{r}
+geneAnnot <- queryMany(dge_results_C1$id, scopes = "ensembl.gene", species = "mouse")
+
+nameKey <- dplyr::tbl_df(geneAnnot[c("query", "name")])
+colnames(nameKey)[1] <- "id"
+dge_wNames_C1 <- dplyr::left_join(dge_results_C1, nameKey, by="id")
+
+geneAnnot <- queryMany(dge_results_C2$id, scopes = "ensembl.gene", species = "mouse")
+
+nameKey <- dplyr::tbl_df(geneAnnot[c("query", "name")])
+colnames(nameKey)[1] <- "id"
+dge_wNames_C2 <- dplyr::left_join(dge_results_C2, nameKey, by="id")
+
+geneAnnot <- queryMany(dge_results_C3$id, scopes = "ensembl.gene", species = "mouse")
+
+nameKey <- dplyr::tbl_df(geneAnnot[c("query", "name")])
+colnames(nameKey)[1] <- "id"
+dge_wNames_C3 <- dplyr::left_join(dge_results_C3, nameKey, by="id")
+```
+
+
+```{r}
+dge_wNames_C1 <- dge_wNames_C1[c(1,2,4:21,3)]
+dge_wNames_C2 <- dge_wNames_C2[c(1,2,4:21,3)]
+#dge_wNames_C3 <- dge_wNames_C3[c(1,2,33,3:32)]
+```
+
+Write table as csv
+```{r}
+write.csv(dge_wNames_C1, file="Contrast1_Tibia_Genes_DE_wNames.csv", row.names = FALSE, quote = TRUE)
+write.csv(dge_wNames_C2, file="Contrast2_Calvaria_Genes_DE_wNames.csv", row.names = FALSE, quote = TRUE)
+write.csv(dge_wNames_C3, file="Contrast3_Combined_Genes_DE_wNames.csv", row.names = FALSE, quote = TRUE)
+```
+
+
+# Annotate GO results
+Import GO results table
+```{r}
+GO_results_C1 <- read_delim("DiffExp/Contrast1/Contrast1_Genes_GO_results.tsv", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+GO_results_C2 <- read_delim("DiffExp/Contrast2/Contrast2_Genes_GO_results.tsv", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+GO_results_C3 <- read_delim("DiffExp/Contrast3/Contrast3_Genes_GO_results.tsv", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+```
+
+```{r}
+GO_key <- read_delim("GO.table.tsv", "\t", escape_double = FALSE, trim_ws = TRUE, col_names = FALSE)
+colnames(GO_key) <- c("id","GOID")
+```
+
+Subset `dge_results` to only consider differentially expressed genes
+```{r}
+sig_dge_C1 <- dplyr::filter(dge_results_C1, deseq.adj.pvalue < 0.05 & edger.adj.p.value < 0.05) 
+sig_dge_C2 <- dplyr::filter(dge_results_C2, deseq.adj.pvalue < 0.05 & edger.adj.p.value < 0.05) 
+sig_dge_C3 <- dplyr::filter(dge_results_C3, deseq.adj.pvalue < 0.05 & edger.adj.p.value < 0.05) 
+```
+
+Define function to produce differential gene string list. 
+```{r}
+getGOgenes=function(GOid,sig_dge){
+  fullgenes <- GO_key$GOID == GOid
+  sig_genes <- GO_key[fullgenes,]$id %in% sig_dge$id
+  final_genes <- GO_key[fullgenes,][sig_genes,]
+  final_genes <- dplyr::left_join(final_genes, sig_dge[c("id","gene_symbol")], by ="id")
+  str_genes <- paste(final_genes$gene_symbol, collapse= ";")
+  return(str_genes)
+}
+```
+
+Finally, add the strings of terms and export table
+```{r}
+GO_results_C1["DifferentialGenes"] <- sapply(GO_results_C1$GOID, getGOgenes, sig_dge=sig_dge_C1)
+GO_results_C2["DifferentialGenes"] <- sapply(GO_results_C2$GOID, getGOgenes, sig_dge=sig_dge_C2)
+GO_results_C3["DifferentialGenes"] <- sapply(GO_results_C3$GOID, getGOgenes, sig_dge=sig_dge_C3)
+
+```
+
+
+```{r}
+write.csv(GO_results_C1, file="Contrast1_Genes_GO_results_wGenes.csv", row.names = FALSE, quote = TRUE)
+write.csv(GO_results_C2, file="Contrast2_Genes_GO_results_wGenes.csv", row.names = FALSE, quote = TRUE)
+write.csv(GO_results_C3, file="Contrast3_Genes_GO_results_wGenes.csv", row.names = FALSE, quote = TRUE)
+```
+
