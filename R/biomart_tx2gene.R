@@ -25,17 +25,18 @@ usage=function(errM) {
 # Transcript to gene csv generating function
 write_tx2gene=function(ens.dataset, ens.host, outfile) {
     mart <- biomaRt::useMart('ensembl', dataset = ens.dataset, host = ens.host)
-    ttg <- biomaRt::getBM( attributes = c("ensembl_transcript_id", 
-                                      "transcript_version",
-                                      "ensembl_gene_id",
-                                      "external_gene_name",
-                                      "description",
-                                      "transcript_biotype"), mart = mart)  
+    attribute.list <- listAttributes(mart)
+    out.attributes <- c("ensembl_transcript_id", "transcript_version",
+                    "ensembl_gene_id", "external_gene_name",
+                    "description","transcript_biotype")
+    avail.attributes <- out.attributes[out.attributes %in% attribute.list$name]
+    ttg <- biomaRt::getBM( attributes = avail.attributes, mart = mart)  
     ttg <- dplyr::rename(ttg, target_id = ensembl_transcript_id,
-                       ens_gene = ensembl_gene_id, ext_gene = external_gene_name)
+                       ens_gene = ensembl_gene_id)
     ttg_id <- ttg
-    ttg_id$target_id <- paste(ttg_id$target_id, ttg_id$transcript_version, sep = ".") 
-
+    if ("transcript_version" %in% avail.attributes) {
+        ttg_id$target_id <- paste(ttg_id$target_id, ttg_id$transcript_version, sep = ".") 
+    }
     write.csv(ttg_id, file=outfile, row.names = FALSE)
 } 
 
