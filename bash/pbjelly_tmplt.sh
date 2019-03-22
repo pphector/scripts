@@ -1,11 +1,12 @@
 #!/bin/bash 
 #PBS -l walltime=200:00:00
-#PBS -l nodes=1:ppn=20
-#PBS -q lm
-#PBS -N Supernova
+#PBS -l nodes=1:ppn=16
+#PBS -l mem=90G
+#PBS -q sw
+#PBS -N PBjelly
 set -eu -o pipefail
 
-SAMPLE="EP521"
+SAMPLE="REPLACE"
 
 # Load blasr
 module purge
@@ -17,17 +18,19 @@ PBSUITE="/cvmfs/soft.mugqic/CentOS6/software/pbsuite/PBSuite_15.2.20beta"
 source ~/scripts/bash/PBsuite_setup.sh 
 
 # Define project directories
-PROJ="/lb/project/mugqic/projects/nada_hybride10x_pacbio_assembly_BFXTD62"
-WORKDIR="${PROJ}/assemblies/supernova/pbjelly/${SAMPLE}"
-DATA="${PROJ}/data_links" 
+PROJ="REPLACE"
+
+# Logs will be saved in WORKDIR
+WORKDIR="REPLACE"
+
+# Most of the input and output paths are defined in the Protocol.xlm 
+# For an example of a functional "Batch" protocol, see above
 PROTOCOL="${WORKDIR}/${SAMPLE}_Batch_Protocol.xml"
 cd $WORKDIR
 
-# Setup project (throws a warning because we don't have a quality for the bases in the assembly)
-#${PBSUITE}/bin/Jelly.py setup $PROTOCOL
 
-# Mapping step
 echo "Starting PBJelly setup..." 
+# Setup project (throws a warning because we don't have a quality for the bases in the assembly)
 ${PBSUITE}/bin/Jelly.py setup $PROTOCOL |& tee -a ${SAMPLE}_PBJelly.log
 echo "Starting PBJelly mapping..."
 ${PBSUITE}/bin/Jelly.py mapping $PROTOCOL |& tee -a ${SAMPLE}_PBJelly.log

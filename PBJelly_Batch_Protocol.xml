@@ -1,0 +1,8 @@
+<jellyProtocol>
+    <reference>/PATH/TO/ASSEMBLY/assembly.fasta</reference>  
+    <outputDir>/PATH/TO/OUTPUT/DIR</outputDir>
+    <blasr>-minMatch 8 -sdpTupleSize 8 -minPctIdentity 75 -bestn 1 -nCandidates 10 -maxScore -500 -nproc 8 -noSplitSubreads</blasr>
+    <input baseDir="/PATH/TO/INPUT/DIR">
+        <job>input.fastq</job>
+    </input>
+</jellyProtocol>
