@@ -1,5 +1,5 @@
 #!/bin/bash 
-#PBS -l walltime=12:00:00
+#PBS -l walltime=48:00:00
 #PBS -l nodes=1:ppn=16
 #PBS -l mem=64G
 #PBS -q sw
@@ -21,14 +21,14 @@ module load mugqic/python/3.5.5 mugqic/samtools/1.9
 SEXDETERR="/nb/home/hgalvez/software/Sex.DetERRmine/Sex.DetERRmine.py"
 
 # Define project directories
-PROJ="GENPIPESOUTPUT"
+PROJ="GENPIPESDIR"
 OUTDIR="${PROJ}/sex_determ"
 SAMPLELIST="${PROJ}/sample_list.txt"
 THREADS=4
 mkdir -p ${OUTDIR}
 cd ${PROJ}
 
-REFERENCE="REFGENOMEFASTA"
+REFERENCE="GENOMEFASTA"
 
 for sample in $(cat ${SAMPLELIST}); do 
 echo alignment/${sample}/${sample}.sorted.bam > bam_path.tmp

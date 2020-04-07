@@ -1,5 +1,5 @@
 #!/bin/bash 
-#PBS -l walltime=24:00:00
+#PBS -l walltime=12:00:00
 #PBS -l nodes=1:ppn=32
 #PBS -l mem=192G
 #PBS -q sw
@@ -18,14 +18,14 @@ module purge
 module load mugqic/bedtools/2.27.0
 
 # Define project directories
-PROJ="GENPIPESOUTPUT"
+PROJ="GENPIPESDIR"
 ALIGNDIR="${PROJ}/alignment"
 OUTDIR="${PROJ}/gc_bias_metrics"
 SAMPLELIST="${PROJ}/sample_list.txt"
 mkdir -p ${OUTDIR} 
 cd ${PROJ}
 
-GC_BED="REFGENOMEGCBED"
+GC_BED="GENOMEGCBED"
 
 for sample in $(cat ${SAMPLELIST}); do
 echo ${sample}
