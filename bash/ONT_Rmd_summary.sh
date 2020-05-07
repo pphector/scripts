@@ -8,7 +8,7 @@ set -eu -o pipefail
 
 # Load modules 
 module purge
-module load mugqic/R_Bioconductor/3.5.1_3.7
+module load mugqic/R_Bioconductor/3.5.1_3.7 mugqic/pandoc/1.15.2
 
 # Define project directories
 PROJ="REPLACE"
