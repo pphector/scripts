@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1585675801705.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3579949536",
+    "id" : "7EE4FD1D",
+    "lastKnownWriteTime" : 1585690215,
+    "last_content_update" : 1585690216012,
+    "path" : "~/Abacus/hgalvez_nanoporeTests/report_presentation_template/ONT_summaryPresentation.template.Rmd",
+    "project_path" : "ONT_summaryPresentation.template.Rmd",
+    "properties" : {
+        "chunk_output_type" : "inline",
+        "cursorPosition" : "308,38",
+        "scrollLine" : "303"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

@@ -1,0 +1,380 @@
+---
+title: "LONG_NAME"
+author: "J.H. Galvez"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: ioslides_presentation
+subtitle: Nanopore SV Analysis
+logo: globe.png
+widescreen: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(karyoploteR))
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(scales))
+suppressPackageStartupMessages(library(VariantAnnotation))
+suppressPackageStartupMessages(library(RColorBrewer))
+suppressPackageStartupMessages(library(jsonlite))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(kableExtra))
+set.seed(123456789)
+getPalette = colorRampPalette(brewer.pal(8, "Dark2"))
+
+# Set "fixed" variables
+genome.version <- "REF_GENOME"
+svim.path.prefix <- "../svim"
+pycoQC.path.prefix <- "../pycoQC"
+pass.qual <- PASS_QUAL
+large.SV.thresh <- LARGE_SV_SIZE
+largest.SV.thresh <- LARGEST_SV_SIZE
+canon.chr = c("1", "2", "3", "4", "5",
+              "6", "7", "8", "9", "10",
+              "11", "12", "13", "14", "15", 
+              "16", "17", "18", "19", "20", 
+              "21", "22", "X", "Y")
+readset.file <- "READSET_LOCATION"
+
+###############################################################################
+# Define functions 
+fromJson_lengths <- function(name.readset) {
+  filename <- str_c(name.readset, ".json")
+  tmp.file <- file.path(pycoQC.path.prefix, name.readset, filename)
+  tmp.json <- read_json(tmp.file, simplifyVector = TRUE)
+  bind_cols(
+    tibble::enframe(tmp.json$`All Reads`$basecall$len_percentiles, name="percentile", value="length.all.reads"),
+    tibble::enframe(tmp.json$`Pass Reads`$basecall$len_percentiles, name=NULL, value="length.pass.reads")
+  ) %>%
+    mutate(., name.readset = name.readset)
+}
+
+fromJson_coverage <- function(name.readset) {
+  name.sample <- stringr::str_split(name.readset, "_")[[1]][1]
+  filename <- str_c(name.readset, ".json")
+  tmp.file <- file.path(pycoQC.path.prefix, name.readset, filename)
+  tmp.json <- read_json(tmp.file, simplifyVector = TRUE)
+  bind_cols(
+    tibble::enframe(tmp.json$`All Reads`$basecall$reads_number, name=NULL, value="all.reads"),
+    tibble::enframe(tmp.json$`All Reads`$basecall$bases_number, name=NULL, value="all.bases"),
+    tibble::enframe(tmp.json$`All Reads`$basecall$N50, name=NULL, value="all.N50"),
+    tibble::enframe(tmp.json$`Pass Reads`$basecall$reads_number, name=NULL, value="pass.reads"),
+    tibble::enframe(tmp.json$`Pass Reads`$basecall$bases_number, name=NULL, value="pass.bases"),
+    tibble::enframe(tmp.json$`Pass Reads`$basecall$N50, name=NULL, value="pass.N50"),
+    tibble::enframe(tmp.json$`Pass Reads`$alignment$reads_number, name=NULL, value="align.reads"),
+    tibble::enframe(tmp.json$`Pass Reads`$alignment$mean_coverage, name=NULL, value="align.mean.coverage")
+  ) %>%
+    mutate(., name.readset = name.readset, name.sample = name.sample)
+}
+
+read_vcf_plus <- function(name.sample) {
+  tmp.file <- file.path(svim.path.prefix, name.sample, "final_results.vcf")
+  tmp.vcf <- readVcf(tmp.file, genome.version)
+  bind_cols(as_tibble(rowRanges(tmp.vcf)), as_tibble(info(tmp.vcf))) %>%
+    mutate(., name.sample = name.sample)
+}
+
+label_percentage <- function(percent.number) {
+  round.down <- round(percent.number, digits = 2)
+  out.label <- paste(as.character(round.down), "%", sep="")
+  out.label
+}
+
+label_chr <- function(chr.number) {
+  if (chr.number %in% canon.chr) {
+    out.chr <- paste("chr", as.character(chr.number), sep="")
+    out.chr
+  } else {
+    out.chr <- as.character(chr.number)
+    out.chr
+  }
+}
+
+###############################################################################
+readset.df <- read_tsv(readset.file)
+readset.df$Sample <- parse_factor(readset.df$Sample)
+readset.df$Readset <- parse_factor(readset.df$Readset)
+readset.df$Library <- parse_factor(readset.df$Library)
+readset.df$Flowcell <- parse_factor(readset.df$Flowcell)
+
+###############################################################################
+
+# Create the run summary tibble (results by READSET)
+run.summary.tibble <- levels(readset.df$Readset) %>% map_df(~fromJson_coverage(.))
+## Calculate the percentage of aligned reads and properly label them
+run.summary.tibble <- run.summary.tibble %>% 
+      dplyr::mutate(align.read.perct = (align.reads / all.reads) * 100) %>%
+      dplyr::mutate(align.perct.label = purrr::map_chr(align.read.perct, label_percentage))
+
+                          
+# Create the plot summary tibble (results by SAMPLE)
+plot.summary.tibble <- run.summary.tibble %>% 
+  dplyr::select(all.reads, all.bases, pass.reads, pass.bases, align.mean.coverage, name.sample) %>% 
+  group_by(name.sample) %>% 
+  summarise_all(sum)
+## Calculate the percentages of pass reads and bases then properly label them
+plot.summary.tibble <- plot.summary.tibble %>% 
+        dplyr::mutate(pass.read.perct = (pass.reads/ all.reads)* 100, 
+                      pass.base.perct = (pass.bases/ all.bases) * 100) %>%
+        dplyr::mutate(pass.read.label = purrr::map_chr(pass.read.perct, label_percentage), 
+                      pass.base.label = purrr::map_chr(pass.base.perct, label_percentage)) 
+                        
+# Create the size distribution table (results by READSET)
+read.length.tibble <- levels(readset.df$Readset) %>% map_df(~fromJson_lengths(.))
+
+max.length.plot.y <- read.length.tibble %>% 
+                    filter(percentile == 95) %>% 
+                    summarise(avg = mean(length.pass.reads))
+max.length.plot.y <- max.length.plot.y$avg[1]
+
+###############################################################################
+
+# Create the SV tibble 
+SV.tibble <- levels(readset.df$Sample) %>% map_df(~read_vcf_plus(.))
+
+pass.qual.SV <- filter(SV.tibble, QUAL > pass.qual)
+chr.names <- pass.qual.SV %>% group_by(seqnames) %>% tally() %>% pull(seqnames)
+out.chr <- as.character(chr.names[1:25])
+
+
+largest.DEL <- pass.qual.SV %>% 
+                dplyr::filter(abs(SVLEN) >= largest.SV.thresh) %>%
+                dplyr::filter(SVTYPE == "DEL") %>% 
+                dplyr::mutate(chr = map_chr(seqnames, label_chr)) %>%
+                dplyr::select(chr, start, END, SVTYPE, SVLEN) %>% 
+                dplyr::rename("end" = END)
+largest.DEL.plot <- toGRanges(data.frame(largest.DEL))
+
+
+largest.INS <- pass.qual.SV %>% 
+                dplyr::filter(abs(SVLEN) >= largest.SV.thresh) %>%
+                dplyr::filter(SVTYPE == "INS") %>% 
+                dplyr::mutate(chr = map_chr(seqnames, label_chr)) %>%
+                dplyr::select(chr, start, END, SVTYPE, SVLEN) %>% 
+                dplyr::rename("end" = END)
+largest.INS.plot <- toGRanges(data.frame(largest.INS))
+  
+
+largest.DUP <- pass.qual.SV %>% 
+                dplyr::filter(abs(SVLEN) >= largest.SV.thresh) %>%
+                dplyr::filter(SVTYPE == "DUP:TANDEM") %>% 
+                dplyr::mutate(chr = map_chr(seqnames, label_chr)) %>%
+                dplyr::select(chr, start, END, SVTYPE, SVLEN) %>% 
+                dplyr::rename("end" = END)
+largest.DUP.plot <- toGRanges(data.frame(largest.DUP))
+                      
+
+```
+
+## Project Summary 
+
+### SHORT_NAME
+
+- **Number of samples:** SAMPLE_NUM
+- **Number of nanopore runs:** READSET_NUM
+- **Species:** *SPECIES_NAME* 
+- **Genome build:** REF_GENOME
+
+## Number of reads per sample {.flexbox .vcenter}
+
+```{r, sample.read.number}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(plot.summary.tibble) +
+  geom_col(aes(x= name.sample, y=all.reads), fill = "Gray") +
+  geom_col(aes(x= name.sample, y=pass.reads), fill = "Green3") +
+  geom_text(aes(x= name.sample, y= pass.reads, label=pass.read.label), nudge_y = 1) +
+  labs(x = "Sample", y= "Number of Reads", 
+       caption = "Grey = Total Reads; Green = Passing Reads; Label number = % passing reads") +
+  coord_flip() +
+  theme_classic()
+```
+
+## Number of bases per sample {.flexbox .vcenter}
+
+```{r, sample.bases}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(plot.summary.tibble) +
+  geom_col(aes(x= name.sample, y=all.bases/ 1000000), fill = "Gray") +
+  geom_col(aes(x= name.sample, y=pass.bases/ 1000000), fill = "Green3") +
+  geom_text(aes(x= name.sample, y= pass.bases/ 1000000, 
+                label=pass.base.label), nudge_y = 1) +
+  labs(x = "Sample", y= "Mb", 
+       caption = "Grey = Total Mb; Green = Passing Mb; Label number = % passing Mb") +
+  coord_flip() +
+  theme_classic()
+```
+
+## Alignment Summary {.smaller}
+
+```{r, sample.summary.table}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+run.summary.tibble %>%
+  dplyr::select(name.readset, name.sample, pass.N50, pass.reads, align.reads, align.perct.label) %>%
+  dplyr::arrange(desc(name.readset)) %>% 
+  dplyr::rename("Run" = name.readset, 
+         "Sample" = name.sample, 
+         "N50" = pass.N50,
+         "Pass Reads" = pass.reads, 
+         "Aligned Reads" = align.reads, 
+         "Percent Aligned" = align.perct.label) %>% 
+  knitr::kable(.) %>%
+  kable_styling(bootstrap_options = "striped", latex_options = "scale_down", protect_latex = TRUE)
+
+```
+
+
+## Average depth of coverage per sample {.flexbox .vcenter}
+
+```{r, sample.depth.number}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(plot.summary.tibble) +
+  geom_col(aes(x= name.sample, y=align.mean.coverage), size = 3) +
+  geom_text(aes(x= name.sample, y= align.mean.coverage, label=round(align.mean.coverage, digits = 2)), nudge_y = 1) +
+  labs(x = "Sample", y= "Depth of Coverage [X]") + 
+  coord_flip() +
+  theme_classic()
+```
+
+
+## Distribution of read lengths {.smaller .flexbox .vcenter}
+
+```{r, pass.read.length.distribution}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(read.length.tibble) + 
+  stat_boxplot(aes(x= name.readset, y= length.pass.reads), outlier.shape= NA) + 
+  ylim(c(0,15000)) + 
+  labs(x = "Sample", y= "Read Length [bp]") +
+  theme_classic() +
+  coord_flip() 
+```
+
+*Includes only reads that have an average base-calling quality > 7*
+
+## Number of SVs by sample {.smaller .flexbox .vcenter}
+*Size > LARGE_SV_SIZEbp*
+
+```{r, sample.distribution.largeSV}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(data = SV.tibble %>% filter(abs(SVLEN) > large.SV.thresh, seqnames %in% out.chr)) +  
+  geom_bar(aes(x=name.sample, fill = SVTYPE), position= "stack") +
+  labs(x = "Sample", y= "Large SV Count", fill = "SV Type") +
+  coord_flip() + 
+  theme_classic() +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = getPalette(4)) 
+```
+
+## Number of SVs in each chromosome {.smaller .flexbox .vcenter}
+*Size > LARGE_SV_SIZEbp*
+
+```{r, chromosome.distribution.largeSV}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(data = pass.qual.SV %>% filter(abs(SVLEN) > large.SV.thresh, seqnames %in% out.chr)) +  
+  geom_bar(aes(x=seqnames, fill = SVTYPE), position= "stack") +
+  labs(x = "Chromosome", y= "Large SV Count", fill = "SV Type") +
+  coord_flip() + 
+  theme_classic() +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = getPalette(4))
+```
+
+## Size distribution of SVs {.smaller .flexbox .vcenter}
+*Size > LARGE_SV_SIZEbp*
+
+```{r, size.distribution.largeSV}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(data = pass.qual.SV %>% filter(abs(SVLEN) > large.SV.thresh, seqnames %in% out.chr)) + 
+  geom_histogram(aes(x=abs(SVLEN)), binwidth = 1000) + 
+  facet_wrap(vars(SVTYPE) )+
+  labs(x = "SV size [bp]", y= "Large SV Count") + 
+  scale_y_log10(breaks = c(10, 100, 1000, 10000,100000,1000000), 
+                label = c("10", "100", "1000", "10000","100000","1000000"))+ 
+  theme_classic()
+```
+
+## Location of largest SV events (>10Kb) {.smaller .flexbox .vcenter}
+
+```{r, karyotype.largest.SV}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+kp <- plotKaryotype(genome="REF_GENOME")
+kpPlotRegions(kp, largest.DEL.plot, col="Red")
+kpPlotRegions(kp, largest.INS.plot, col="Green")
+kpPlotRegions(kp, largest.DUP.plot, col="Blue")
+```
+
+Red = Deletions ; Green = Insertions ; Blue = Duplications
+
+<font size="3">
+\* The height of the bar corresponds to the number of times an event was detected
+</font>
+
+
+## Number of Indels by sample {.smaller .flexbox .vcenter}
+*Size: > 50, < LARGE_SV_SIZEbp*
+
+```{r, sample.distribution.smallSV}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(data = SV.tibble %>% filter(abs(SVLEN) < large.SV.thresh, seqnames %in% out.chr)) +  
+  geom_bar(aes(x=name.sample, fill = SVTYPE), position= "stack") +
+  labs(x = "Sample", y= "Indel Count", fill = "Type") +
+  coord_flip() + 
+  theme_classic() +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = getPalette(4))
+```
+
+## Number of Indels in each chromosome {.smaller .flexbox .vcenter}
+*Size: > 50, < LARGE_SV_SIZEbp*
+
+```{r, chromosome.distribution.smallSV}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(data = pass.qual.SV %>% filter(abs(SVLEN) < large.SV.thresh, seqnames %in% out.chr)) +  
+  geom_bar(aes(x=seqnames, fill = SVTYPE), position= "stack") +
+  labs(x = "Chromosome", y= "Indel Count", fill = "Type") +
+  coord_flip() + 
+  theme_classic() +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = getPalette(4))
+```
+
+## Size Distribution of Indels {.smaller .flexbox .vcenter}
+*Size: > 50, < LARGE_SV_SIZEbp*
+
+```{r, size.distribution.smallSV}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+ggplot(data = pass.qual.SV %>% filter(abs(SVLEN) < large.SV.thresh, seqnames %in% out.chr, SVTYPE != "DUP:TANDEM")) + 
+  geom_histogram(aes(x=abs(SVLEN))) + 
+  facet_wrap(vars(SVTYPE) )+
+  labs(x = "SV size [bp]", y= "Small SV Count") + 
+  scale_y_log10(breaks = c(10, 100, 1000, 10000,100000,1000000), 
+                label = c("10", "100", "1000", "10000","100000","1000000"))+ 
+  theme_classic() 
+```
+
+## Additional Information
+
+- Analysis run using the **GenPipes Nanopore** pipeline (*beta version*)
+
+  - **ONT Basecaller**:   `GUPPY_VER`
+  - **Aligner:**   `MINIMAP_VER`
+  - **SV caller:**   `SVIM_VER`
+  - **Additional tools:**
+      - `SAMTOOLS_VER`
+      - `PYCOQC_VER`
+      - `BEDTOOLS_VER`
+      - `SEXDETERR_VER`
+    
+> **Report prepared on:** `r format(Sys.time(), '%d %B, %Y')` by *Jose Hector Galvez* 
